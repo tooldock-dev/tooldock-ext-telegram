@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tbx
+.DS_Store
+# 簽章私鑰，絕不提交
+tooldock-signing-key*.pem

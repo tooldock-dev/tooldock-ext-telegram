@@ -1,0 +1,87 @@
+{
+  "name": "telegram",
+  "version": "1.0.0",
+  "description": "透過 Telegram bot 發送通知：設定多個聊天室，接收其他工具分享的文字與表格（tooldock.text、tooldock.table），並提供 telegram.send 指令讓其他擴充發送通知",
+  "main": "backend/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "tooldock-ext dev",
+    "debug": "tooldock-ext dev --inspect",
+    "validate": "tooldock-ext validate",
+    "test": "node --test test/*.test.js",
+    "pack": "tooldock-ext pack",
+    "install-local": "tooldock-ext install"
+  },
+  "tooldock": {
+    "id": "telegram",
+    "displayName": "Telegram 通知",
+    "description": "用 Telegram bot 發送通知：設定多個聊天室、Bot Token 以鑰匙圈加密保存；接收其他工具分享的文字與表格，預覽後選聊天室發送（表格可轉成文字或 CSV 附檔）；提供 telegram.send 指令讓其他擴充自動發送",
+    "icon": "✈️",
+    "engine": "^1.4.0",
+    "activationEvents": [],
+    "contributes": {
+      "views": [
+        {
+          "id": "telegram.main",
+          "title": "Telegram 通知",
+          "icon": "✈️",
+          "entry": "ui/index.html"
+        }
+      ],
+      "commands": [
+        {
+          "id": "telegram.open",
+          "title": "Telegram 通知：開啟"
+        },
+        {
+          "id": "telegram.send",
+          "title": "Telegram 通知：發送訊息"
+        }
+      ],
+      "configuration": {
+        "telegram.apiBase": {
+          "type": "string",
+          "default": "https://api.telegram.org",
+          "title": "API 位址",
+          "description": "使用自架 Bot API 伺服器或公司反向代理時修改"
+        },
+        "telegram.timeoutSeconds": {
+          "type": "number",
+          "default": 30,
+          "title": "逾時（秒）",
+          "description": "單次呼叫 Telegram API 的逾時"
+        }
+      },
+      "exchange": {
+        "imports": [
+          {
+            "type": "tooldock.table",
+            "handler": "importTable",
+            "title": "發送到 Telegram",
+            "view": "telegram.main"
+          },
+          {
+            "type": "tooldock.text",
+            "handler": "importText",
+            "title": "發送到 Telegram",
+            "view": "telegram.main"
+          }
+        ]
+      }
+    }
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tooldock-cli": "^1.1.0",
+    "tooldock-types": "^1.1.0"
+  },
+  "keywords": [
+    "tooldock",
+    "telegram",
+    "notification",
+    "exchange",
+    "tooldock.table",
+    "tooldock.text"
+  ]
+}

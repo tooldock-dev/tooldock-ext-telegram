@@ -1,0 +1,114 @@
+# 推送 v* tag 時自動驗證、打包、簽章並建立 GitHub Release
+#
+#   npm version patch          # 更新 package.json 版本並建立 v<版本> tag
+#   git push --follow-tags
+#
+# 需要的設定（GitHub repo → Settings → Secrets and variables → Actions）：
+#   Secret   TOOLDOCK_SIGNING_KEY  簽章私鑰（tooldock-ext keygen 產生的 PEM 檔完整內容）
+#   Variable TOOLDOCK_PUBLIC_KEY   選用：公鑰字串，設定後發佈前會再驗證一次簽章
+#
+# 沒有設定 TOOLDOCK_SIGNING_KEY 時仍會發佈 .tbx 與 .sha256，但未簽章，商店不會收錄。
+# 詳細說明見本專案 README 的「發佈」一節，以及 ToolDock repo 的 docs/RELEASE.md。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安裝相依套件
+        run: npm ci
+
+      - name: 驗證 manifest
+        run: npm run validate
+
+      - name: 檢查 tag 與 package.json 版本一致
+        id: meta
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          ID="$(node -p "require('./package.json').tooldock.id")"
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error title=版本不一致::tag 是 $GITHUB_REF_NAME，但 package.json 的版本是 $VERSION（tag 應為 v$VERSION）。請用 npm version 更新版本後重新建立 tag。"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "tbx=dist/$ID-$VERSION.tbx" >> "$GITHUB_OUTPUT"
+
+      - name: 打包並簽章
+        id: pack
+        env:
+          TOOLDOCK_SIGNING_KEY: ${{ secrets.TOOLDOCK_SIGNING_KEY }}
+        run: |
+          rm -rf dist
+          if [ -n "$TOOLDOCK_SIGNING_KEY" ]; then
+            npx tooldock-ext pack --sign
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=未簽章，商店不會收錄::沒有設定 secret TOOLDOCK_SIGNING_KEY，這次只會發佈 .tbx 與 .sha256。請執行 npx tooldock-ext keygen 產生金鑰並把私鑰加入 secret。"
+            npx tooldock-ext pack --checksum
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 以公鑰驗證簽章
+        if: steps.pack.outputs.signed == 'true' && vars.TOOLDOCK_PUBLIC_KEY != ''
+        env:
+          TOOLDOCK_PUBLIC_KEY: ${{ vars.TOOLDOCK_PUBLIC_KEY }}
+          TBX: ${{ steps.meta.outputs.tbx }}
+        run: npx tooldock-ext verify "$TBX"
+
+      - name: 建立 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TBX: ${{ steps.meta.outputs.tbx }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SIGNED: ${{ steps.pack.outputs.signed }}
+        run: |
+          FILES=("$TBX" "$TBX.sha256")
+          if [ "$SIGNED" = "true" ]; then FILES+=("$TBX.sig"); fi
+          for f in "${FILES[@]}"; do
+            [ -f "$f" ] || { echo "::error::找不到發佈檔 $f"; exit 1; }
+          done
+
+          FLAGS=()
+          # 版本含 - （例如 1.2.0-beta.1）視為預先發行版
+          case "$VERSION" in *-*) FLAGS+=(--prerelease) ;; esac
+
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME 已存在，覆寫附件"
+            gh release upload "$GITHUB_REF_NAME" "${FILES[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${FILES[@]}" \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              "${FLAGS[@]}"
+          fi
+
+          {
+            echo "### 已發佈 $GITHUB_REF_NAME"
+            for f in "${FILES[@]}"; do echo "- \`$(basename "$f")\`"; done
+            if [ "$SIGNED" != "true" ]; then
+              echo ""
+              echo "> ⚠️ 未簽章，商店不會收錄。請設定 secret \`TOOLDOCK_SIGNING_KEY\` 後重新發佈。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

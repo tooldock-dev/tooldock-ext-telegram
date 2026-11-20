@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "tooldock: debug",
+      "type": "npm",
+      "script": "debug",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "tooldock",
+        "pattern": { "regexp": "^__tooldock_never_match__$" },
+        "background": {
+          "activeBegins": true,
+          "beginsPattern": "ToolDock 擴充開發模式",
+          "endsPattern": "後端偵錯埠 127\\.0\\.0\\.1:\\d+"
+        }
+      }
+    }
+  ]
+}

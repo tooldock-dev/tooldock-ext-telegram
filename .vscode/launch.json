@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ToolDock：啟動並偵錯擴充",
+      "type": "node",
+      "request": "attach",
+      "preLaunchTask": "tooldock: debug",
+      "address": "127.0.0.1",
+      "port": 9229,
+      "restart": true,
+      "timeout": 30000,
+      "continueOnAttach": true,
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "ToolDock：附加到執行中的擴充後端",
+      "type": "node",
+      "request": "attach",
+      "address": "127.0.0.1",
+      "port": 9229,
+      "restart": true,
+      "timeout": 30000,
+      "continueOnAttach": true,
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

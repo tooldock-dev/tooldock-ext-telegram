@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>Telegram 通知</title>
+  <link rel="stylesheet" href="tooldock://sdk/ui-base.css">
+  <style>
+    body { padding: 20px 24px 40px; max-width: 920px; }
+    header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    header h1 { margin: 0; }
+    .card { margin-bottom: 14px; }
+    .card > h3 { display: flex; align-items: center; gap: 8px; }
+    .help { font-size: 12px; color: var(--fg-muted); line-height: 1.6; margin: 4px 0 0; }
+    .help ol { margin: 4px 0; padding-left: 20px; }
+    #pending { border-color: var(--accent); }
+    #pending pre {
+      max-height: 280px; overflow: auto; margin: 8px 0; padding: 10px 12px;
+      background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius);
+      white-space: pre; line-height: 1.45;
+    }
+    #pending pre.wrap { white-space: pre-wrap; word-break: break-word; }
+    .modes label { display: inline-flex; align-items: center; gap: 4px; color: var(--fg); }
+    input.grow, select.grow { flex: 1; min-width: 160px; }
+    #chats td.actions { text-align: right; }
+    #chats td.actions button, #found button, #history button { min-height: 22px; padding: 0 8px; }
+    #chats input.rename { min-height: 22px; width: 180px; }
+    #found { margin-top: 8px; }
+    #history td.summary { white-space: normal; word-break: break-word; min-width: 200px; }
+    #history td.err { white-space: normal; }
+    textarea#msg { min-height: 90px; }
+    details summary { cursor: pointer; color: var(--fg-muted); }
+    details pre { background: var(--bg-sunken); padding: 10px 12px; border-radius: var(--radius); overflow: auto; }
+    .status { min-height: 18px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>✈️ Telegram 通知</h1>
+    <span id="botBadge" class="badge">未設定</span>
+  </header>
+
+  <!-- 其他工具分享過來、等待確認的內容 -->
+  <section id="pending" class="card" hidden>
+    <h3>📥 分享：<span id="pTitle"></span><span class="spacer"></span><span id="pQueue" class="badge info" style="display:none"></span></h3>
+    <div class="muted" id="pMeta"></div>
+    <pre id="pPreview"></pre>
+    <div class="row">
+      <label for="pChat">聊天室</label>
+      <select id="pChat" class="grow"></select>
+      <span class="modes">
+        <label><input type="radio" name="pMode" value="text"> 文字訊息</label>
+        <label><input type="radio" name="pMode" value="file"> 附檔 <span id="pFile" class="faint"></span></label>
+      </span>
+      <label><input type="checkbox" id="pSilent"> 靜音</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="pSend">發送</button>
+      <button id="pCancel" class="secondary">取消</button>
+      <span id="pStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="card" id="botCard">
+    <h3>Bot</h3>
+    <div id="botNone">
+      <div class="row">
+        <input id="token" type="password" class="grow" placeholder="Bot Token，例如 123456789:AAH…" autocomplete="off">
+        <button id="saveToken">驗證並儲存</button>
+      </div>
+      <div class="help">
+        <ol>
+          <li>在 Telegram 找 <b>@BotFather</b>，傳送 <code>/newbot</code> 建立 bot，取得 Token。</li>
+          <li>貼到上方按「驗證並儲存」。Token 會以作業系統鑰匙圈加密保存。</li>
+          <li>個人通知：對 bot 傳一則訊息。群組通知：把 bot 加進群組後，在群組傳一則訊息。然後到下方「尋找最近聊天室」。</li>
+        </ol>
+      </div>
+    </div>
+    <div id="botSet" class="row" hidden>
+      <span id="botName"></span>
+      <span class="spacer"></span>
+      <button id="testBot" class="secondary">測試連線</button>
+      <button id="changeToken" class="secondary">更換 Token</button>
+      <button id="clearToken" class="danger">移除</button>
+    </div>
+    <div id="insecure" class="help warn" hidden>⚠ 這台電腦無法使用鑰匙圈加密，Token 以明文存放在擴充資料夾。</div>
+    <div id="botStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h3>聊天室</h3>
+    <table class="grid" id="chats">
+      <thead><tr><th>預設</th><th>名稱</th><th>chat_id</th><th>類型</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="row" style="margin-top:10px">
+      <input id="newChatId" placeholder="chat_id 或 @頻道" style="width:200px">
+      <input id="newChatName" class="grow" placeholder="名稱（選填，預設取 Telegram 上的名稱）">
+      <button id="addChat">新增</button>
+      <button id="findChats" class="secondary">尋找最近聊天室</button>
+    </div>
+    <div id="found"></div>
+    <div id="chatStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h3>發送訊息</h3>
+    <div class="stack">
+      <div class="row">
+        <label for="msgChat">聊天室</label>
+        <select id="msgChat" class="grow"></select>
+        <label><input type="checkbox" id="msgHtml"> HTML 格式</label>
+        <label><input type="checkbox" id="msgSilent"> 靜音</label>
+      </div>
+      <textarea id="msg" placeholder="輸入訊息，⌘/Ctrl + Enter 發送"></textarea>
+      <div class="row">
+        <button id="sendMsg">發送</button>
+        <span id="msgStatus" class="status"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>最近紀錄<span class="spacer"></span><button id="clearHistory" class="ghost" style="min-height:22px">清除</button></h3>
+    <table class="grid" id="history">
+      <thead><tr><th>時間</th><th>聊天室</th><th>內容</th><th>來源</th><th>結果</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <details class="card">
+    <summary>給其他擴充：用指令發送通知</summary>
+    <pre>// 發送到預設聊天室
+await ctx.commands.execute('telegram.send', '備份完成');
+
+// 指定聊天室（名稱或 chat_id）、HTML 格式、靜音
+await ctx.commands.execute('telegram.send', {
+  text: '&lt;b&gt;站台異常&lt;/b&gt;\nhttps://example.com 回應 503',
+  html: true, chat: '維運群組', silent: false,
+});
+
+// 發送附檔
+await ctx.commands.execute('telegram.send', {
+  file: { filename: 'report.csv', content: 'a,b\n1,2', mime: 'text/csv' },
+  caption: '日報',
+});
+// 回傳 { ok: true, chat, messageIds }；失敗時丟出錯誤</pre>
+    <p class="help">畫面上的「分享」會先預覽、由使用者選聊天室；指令則直接發送，不經確認。</p>
+  </details>
+
+  <script src="tooldock://sdk/ui-sdk.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
